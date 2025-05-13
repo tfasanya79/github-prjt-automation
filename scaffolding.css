@@ -15,3 +15,14 @@ github-project-auto/
     ├── ISSUE_TEMPLATE/              ← Community issue templates
     ├── PULL_REQUEST_TEMPLATE.md     ← PR guidelines
     └── CONTRIBUTING.md              ← How to contribute
+
+
+------------
+
+🔧 Planned Features (v1.1+)
+ CLI flag and environment variable support
+ Dynamic team assignment (via GitHub Teams)
+ Integration with Trello/JIRA (beta)
+ Slack alert support
+ GitHub Action integration
+ Label/PR/Milestone enhancements
