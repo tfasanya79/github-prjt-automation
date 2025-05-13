@@ -25,3 +25,10 @@ cd github-prjt-automation
 pip install -r requirements.txt
 
 python3 git_proj_auto.py
+
+
+🤝 Contributing
+Want to help us simplify GitHub workflows?
+Check out CONTRIBUTING.md
+Submit issues or feature requests
+Open a PR — we’d love to see your improvements!
