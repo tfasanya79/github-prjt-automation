@@ -1,0 +1,17 @@
+github-project-auto/
+│
+├── git_proj_auto.py                  ← Main automation script (soon modularized)
+├── config.yaml                       ← Configurable inputs (project, issues, users)
+├── requirements.txt                  ← Python dependencies
+├── README.md                         ← Main documentation
+├── LICENSE                           ← Open-source license
+├── .gitignore                        ← Ignores pycache, etc.
+│
+├── docs/                             ← Extended documentation, screenshots
+├── examples/                         ← Sample config and output
+├── tests/                            ← Unit or integration tests (later phase)
+│
+└── .github/
+    ├── ISSUE_TEMPLATE/              ← Community issue templates
+    ├── PULL_REQUEST_TEMPLATE.md     ← PR guidelines
+    └── CONTRIBUTING.md              ← How to contribute
