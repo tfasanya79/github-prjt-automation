@@ -1,0 +1,8 @@
+repo: your-username/your-repo
+project_title: SIEM Lab Progress
+assignee: your-github-username
+issues:
+  - title: Set up SIEM architecture
+    status: Todo
+  - title: Ingest Windows logs
+    status: Todo
