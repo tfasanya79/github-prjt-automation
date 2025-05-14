@@ -1,2 +1,5 @@
 requests
+tqdm
+python-dotenv
+requests
 yaml

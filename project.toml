@@ -1,0 +1,7 @@
+[project]
+name = "github-prjt-automation"
+version = "0.1.0"
+description = "Automate GitHub project management tasks."
+authors = ["Timothy Fasanya timothy.fasanya79@gmail.com"]
+license = "Apache-2.0"
+requires-python = ">=3.8"
