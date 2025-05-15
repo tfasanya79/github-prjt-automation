@@ -1,4 +1,4 @@
-# Entry point for the GitHub project automation tool
+# Entry point for the GitHub project automation tool.
 
 def main():
     print('Hello from github-prjt-automation!')
