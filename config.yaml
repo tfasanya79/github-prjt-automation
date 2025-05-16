@@ -1,6 +1,15 @@
-repo: your-username/your-repo
+
+repo: tfasanya79/siem-log-analysis-lab
 project_title: SIEM Lab Progress
-assignee: your-github-username
+assignee: tfasanya79
+description: |
+  This project is a lab for setting up a Security Information and Event Management (SIEM) system. The goal is to learn how to ingest logs from various sources, analyze them, and respond to security incidents.
+
+  The project will cover the following topics:
+  - Setting up the SIEM architecture
+  - Ingesting logs from Windows systems
+  - Analyzing logs for security incidents
+  - Responding to security incidents
 issues:
   - title: Set up SIEM architecture
     status: Todo
