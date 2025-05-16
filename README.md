@@ -1,6 +1,9 @@
 
-[![CI](https://github.com/tfasanya79/siem-log-analysis-lab/actions/workflows/coverage.yml/badge.svg)](https://github.com/tfasanya79/siem-log-analysis-lab/actions/workflows/coverage.yml)
+[![CI](https://github.com/tfasanya79/siem-log-analysis-lab/actions/workflows/main.yml/badge.svg)](https://github.com/tfasanya79/siem-log-analysis-lab/actions/workflows/main.yml)
 [![codecov](https://codecov.io/gh/tfasanya79/siem-log-analysis-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/tfasanya79/siem-log-analysis-lab)
+![Python Version](https://img.shields.io/badge/python-3.12.3-blue.svg)
+![License](https://img.shields.io/github/license/tfasanya79/siem-log-analysis-lab)
+![Last Commit](https://img.shields.io/github/last-commit/tfasanya79/siem-log-analysis-lab)
 
 
 # github-prjt-automation 🚀
