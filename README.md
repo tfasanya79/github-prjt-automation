@@ -1,3 +1,8 @@
+
+[![CI](https://github.com/tfasanya79/siem-log-analysis-lab/actions/workflows/coverage.yml/badge.svg)](https://github.com/tfasanya79/siem-log-analysis-lab/actions/workflows/coverage.yml)
+[![codecov](https://codecov.io/gh/tfasanya79/siem-log-analysis-lab/branch/main/graph/badge.svg)](https://codecov.io/gh/tfasanya79/siem-log-analysis-lab)
+
+
 # github-prjt-automation 🚀
 
 **Automate GitHub Project Boards and Issue Management**
