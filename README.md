@@ -28,7 +28,7 @@ A lightweight Python tool for automating project setup, issue creation, assignme
 ## 🚀 Quick Start
 
 ```bash
-git clone https://github.com/yourname/github-prjt-automation.git
+git clone https://github.com/tfasanya79/github-prjt-automation.git
 cd github-prjt-automation
 pip install -r requirements.txt
 
