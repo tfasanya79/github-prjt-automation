@@ -1,10 +1,10 @@
-
+# Runtime dependencies
 PyYAML>=6.0
 requests>=2.31.0
 graphql-core>=3.2.3
 python-dotenv>=1.0.0
+
+# Development & testing tools
 coverage==7.8.0
-# requirements.txt
 mypy
 ruff
-
