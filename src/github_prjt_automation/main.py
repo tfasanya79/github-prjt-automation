@@ -1,39 +1,35 @@
 import os
-
-from .utils import GitHubHelper, load_yaml
+from .utils import GitHubHelper, get_config
 
 
 def main():
-    config_path = os.path.join(os.path.dirname(__file__), '../../config.yaml')
-    config = load_yaml(config_path)
+    config = get_config()
 
-    github_token = os.getenv("GITHUB_TOKEN") or config.get("GITHUB_TOKEN")
-    if not github_token:
-        raise EnvironmentError("GitHub token not found. Set GITHUB_TOKEN environment variable or add to config.yaml")
+    if not config.get("github_token"):
+        raise EnvironmentError("GitHub token not found. Set GITHUB_TOKEN or add it to config.yaml")
 
-    gh = GitHubHelper(
-        token=config["GITHUB_TOKEN"],
-        repo=config["repo"]
-    )
-    project_id = gh.get_or_create_project(config["project_title"])
+    helper = GitHubHelper(token=config["github_token"], repo=config["repo"])
 
+    project_id = helper.get_or_create_project(config["project_name"])
     if not project_id:
-        print(f"❌ Project '{gh.project_title}' not found.")
-        return    
-    print(f"✅ Project '{config['project_title']}' exists.")
+        print(f"❌ Project '{config['project_name']}' not found.")
+        return
+    print(f"✅ Project '{config['project_name']}' exists.")
 
+    status_field_id = helper.get_status_field_id(project_id)
 
-    for issue_data in config["issues"]:
-        issue_title = issue_data["title"]
-        issue = gh.create_issue(issue_title)
-        if not issue:
+    for issue in config["issues"]:
+        issue_title = issue["title"]
+        issue_body = issue.get("content", "")
+        issue_id = helper.create_issue(issue_title, issue_body)
+
+        if not issue_id:
             print(f"❌ Failed to create issue '{issue_title}'")
             continue
 
-        issue_id = issue["id"]
-        issue_number = issue["number"]
-        gh.add_issue_to_project(project_id, issue_id)
-        gh.set_issue_status(project_id, issue_number, "Todo")
+        added = helper.add_issue_to_project(project_id, issue_id)
+        if added and status_field_id:
+            helper.set_issue_status(project_id, issue_id, "In Progress", status_field_id)
 
 
 if __name__ == "__main__":
