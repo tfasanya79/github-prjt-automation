@@ -1,0 +1,964 @@
+From d5359c59e26627ffcbaef294f96ec115389c52b8 Mon Sep 17 00:00:00 2001
+From: Tim Fasanya <timothy.fasanya79@gmail.com>
+Date: Sun, 18 May 2025 06:57:23 +0200
+Subject: [PATCH] working on tests
+
+---
+ coverage_boost.patch                |  57 +++++++
+ src/github_prjt_automation/main.py  |  42 +++--
+ src/github_prjt_automation/utils.py | 245 +++++++++++++++++++++-------
+ tests/{__init__py => __init__.py}   |   0
+ tests/test_edge_cases.py            |  88 ++++++++++
+ tests/test_edge_cases_copy.py       |  86 ++++++++++
+ tests/test_main.py                  | 196 +++++++++++-----------
+ tests/test_main_copy.py             | 104 ++++++++++++
+ 8 files changed, 642 insertions(+), 176 deletions(-)
+ create mode 100755 coverage_boost.patch
+ rename tests/{__init__py => __init__.py} (100%)
+ create mode 100644 tests/test_edge_cases.py
+ create mode 100644 tests/test_edge_cases_copy.py
+ create mode 100644 tests/test_main_copy.py
+
+diff --git a/coverage_boost.patch b/coverage_boost.patch
+new file mode 100755
+index 0000000..b9edac2
+--- /dev/null
++++ b/coverage_boost.patch
+@@ -0,0 +1,57 @@
++diff --git a/tests/test_edge_cases.py b/tests/test_edge_cases.py
++index 0123456..89abcde 100644
++--- a/tests/test_edge_cases.py
+++++ b/tests/test_edge_cases.py
++@@ class TestUtilsEdgeCases(unittest.TestCase):
+++    @patch.object(utils.GitHubHelper, "_graphql_query")
+++    def test_get_project_item_id_found(self, mock_query):
+++        mock_query.return_value = {
+++            "node": {
+++                "items": {
+++                    "nodes": [
+++                        {"content": {"number": 123}, "id": "item123"},
+++                        {"content": {"number": 124}, "id": "item124"}
+++                    ]
+++                }
+++            }
+++        }
+++        result = self.gh._get_project_item_id("proj_id", 123)
+++        self.assertEqual(result, "item123")
+++
+++    @patch.object(utils.GitHubHelper, "_graphql_query")
+++    def test_get_project_item_id_not_found(self, mock_query):
+++        mock_query.return_value = {
+++            "node": {
+++                "items": {"nodes": []}
+++            }
+++        }
+++        result = self.gh._get_project_item_id("proj_id", 999)
+++        self.assertIsNone(result)
+++
+++    def test_set_issue_status_failure_path(self):
+++        with patch.object(self.gh, "get_status_field_id", return_value=(None, None)):
+++            result = self.gh.set_issue_status(1, "Todo", "proj_id")
+++            self.assertFalse(result)
++diff --git a/tests/test_main.py b/tests/test_main.py
++index abcdef0..7654321 100644
++--- a/tests/test_main.py
+++++ b/tests/test_main.py
++@@ class TestGitHubAutomation(unittest.TestCase):
+++
+++    def test_main_missing_config_fields(self):
+++        mock_config = {
+++            "github_token": "token",
+++            "repo_owner": "owner",
+++            "repo_name": "repo",
+++            "issues": ["Task 1"]
+++        }
+++        with patch("src.github_prjt_automation.main.get_config", return_value=mock_config), \
+++             patch("src.github_prjt_automation.main.GitHubHelper") as mock_helper:
+++            mock_helper.return_value.get_or_create_project.return_value = "project_id"
+++            mock_helper.return_value.create_issue.return_value = {"node_id": "abc123", "number": 1}
+++            mock_helper.return_value.add_issue_to_project.return_value = True
+++            try:
+++                import src.github_prjt_automation.main as main_module
+++                main_module.main()
+++            except Exception:
+++                self.fail("main() raised unexpectedly")
+diff --git a/src/github_prjt_automation/main.py b/src/github_prjt_automation/main.py
+index 1cdb7fb..e30cac7 100644
+--- a/src/github_prjt_automation/main.py
++++ b/src/github_prjt_automation/main.py
+@@ -1,39 +1,35 @@
+ import os
+-
+-from .utils import GitHubHelper, load_yaml
++from .utils import GitHubHelper, get_config
+ 
+ 
+ def main():
+-    config_path = os.path.join(os.path.dirname(__file__), '../../config.yaml')
+-    config = load_yaml(config_path)
++    config = get_config()
+ 
+-    github_token = os.getenv("GITHUB_TOKEN") or config.get("GITHUB_TOKEN")
+-    if not github_token:
+-        raise EnvironmentError("GitHub token not found. Set GITHUB_TOKEN environment variable or add to config.yaml")
++    if not config.get("github_token"):
++        raise EnvironmentError("GitHub token not found. Set GITHUB_TOKEN or add it to config.yaml")
+ 
+-    gh = GitHubHelper(
+-        token=config["GITHUB_TOKEN"],
+-        repo=config["repo"]
+-    )
+-    project_id = gh.get_or_create_project(config["project_title"])
++    helper = GitHubHelper(token=config["github_token"], repo=config["repo"])
+ 
++    project_id = helper.get_or_create_project(config["project_name"])
+     if not project_id:
+-        print(f"❌ Project '{gh.project_title}' not found.")
+-        return    
+-    print(f"✅ Project '{config['project_title']}' exists.")
++        print(f"❌ Project '{config['project_name']}' not found.")
++        return
++    print(f"✅ Project '{config['project_name']}' exists.")
++
++    status_field_id = helper.get_status_field_id(project_id)
+ 
++    for issue in config["issues"]:
++        issue_title = issue["title"]
++        issue_body = issue.get("content", "")
++        issue_id = helper.create_issue(issue_title, issue_body)
+ 
+-    for issue_data in config["issues"]:
+-        issue_title = issue_data["title"]
+-        issue = gh.create_issue(issue_title)
+-        if not issue:
++        if not issue_id:
+             print(f"❌ Failed to create issue '{issue_title}'")
+             continue
+ 
+-        issue_id = issue["id"]
+-        issue_number = issue["number"]
+-        gh.add_issue_to_project(project_id, issue_id)
+-        gh.set_issue_status(project_id, issue_number, "Todo")
++        added = helper.add_issue_to_project(project_id, issue_id)
++        if added and status_field_id:
++            helper.set_issue_status(project_id, issue_id, "In Progress", status_field_id)
+ 
+ 
+ if __name__ == "__main__":
+diff --git a/src/github_prjt_automation/utils.py b/src/github_prjt_automation/utils.py
+index 0f279fc..04c3b32 100644
+--- a/src/github_prjt_automation/utils.py
++++ b/src/github_prjt_automation/utils.py
+@@ -1,58 +1,62 @@
+-# src/github_prjt_automation/utils.py
+-
+ import requests
+-import logging
++import json
+ import yaml
++import os
++
++
++def load_yaml(file_path="config.yaml"):
++    try:
++        with open(file_path, "r") as file:
++            return yaml.safe_load(file)
++    except FileNotFoundError:
++        return {}
+ 
+-def load_yaml(config_file: str) -> dict:
+-    with open(config_file, 'r') as f:
+-        return yaml.safe_load(f)
+ 
++def get_config():
++    config = load_yaml()
+ 
++    # Fallbacks to env vars
++    config["github_token"] = os.getenv("GITHUB_TOKEN") or config.get("github_token")
++    config["repo_owner"] = config.get("repo_owner") or os.getenv("REPO_OWNER")
++    config["repo_name"] = config.get("repo_name") or os.getenv("REPO_NAME")
++    config["repo"] = config.get("repo") or f'{config["repo_owner"]}/{config["repo_name"]}'
++    config["project_name"] = config.get("project_name") or os.getenv("PROJECT_NAME")
+ 
+-logger = logging.getLogger("github_prjt_automation")
++    config["issues"] = config.get("issues", [])
++    return config
+ 
+-GITHUB_API = "https://api.github.com"
+-GRAPHQL_API = "https://api.github.com/graphql"
+ 
+ class GitHubHelper:
+-    def __init__(self, token, repo):
++    """
++    A helper class to interact with the GitHub GraphQL and REST APIs
++    for managing issues and projects.
++    """
++    def __init__(self, token: str, repo: str):
+         self.token = token
+         self.repo = repo
++        self.project_id = None
+         self.headers = {
+-            "Authorization": f"Bearer {self.token}",
+-            "Accept": "application/vnd.github+json",
++            "Authorization": f"Bearer {token}",
++            "Accept": "application/vnd.github+json"
+         }
+ 
+-    def get_status_field_id(self, project_id):
+-        logger.info(f"ℹ️ Placeholder: get_status_field_id({project_id}) called.")
+-        return "fake-status-field-id"
+-
+-    def set_status_field(self, project_id, issue_node_id, field_id, status_value):
+-        logger.info(f"ℹ️ Placeholder: set_status_field({project_id}, {issue_node_id}, {field_id}, {status_value}) called.")
+-
+-    def get_project_by_name(self, name):
+-        logger.info(f"ℹ️ Placeholder: get_project_by_name({name}) called.")
+-        return {"id": "MOCK_PROJECT_ID", "title": name}
+-
+-
+-    def _graphql_query(self, query, variables=None):
+-        response = requests.post(
+-            GRAPHQL_API,
+-            json={"query": query, "variables": variables or {}},
+-            headers=self.headers,
+-        )
++    def _graphql_query(self, query: str, variables: dict = None) -> dict:
++        url = "https://api.github.com/graphql"
++        payload = {"query": query}
++        if variables:
++            payload["variables"] = variables
++        response = requests.post(url, json=payload, headers=self.headers)
+         response.raise_for_status()
+         return response.json()["data"]
+ 
+-    def get_or_create_project(self, project_title):
++    def get_or_create_project(self, project_title: str) -> str:
+         query = """
+         query {
+             viewer {
+-                projectsV2(first: 100) {
++                projectsV2(first: 10) {
+                     nodes {
+-                        id
+                         title
++                        id
+                     }
+                 }
+             }
+@@ -62,38 +66,165 @@ class GitHubHelper:
+         projects = data["viewer"]["projectsV2"]["nodes"]
+         for project in projects:
+             if project["title"] == project_title:
+-                logger.info(f"✅ Project '{project_title}' already exists.")
+-                return project["id"]
+-        raise ValueError(f"Project '{project_title}' not found. Auto-creation not implemented.")
++                print(f"✅ Project '{project_title}' exists.")
++                self.project_id = project["id"]
++                return self.project_id
+ 
+-    def create_issue(self, title, body=""):
+-        url = f"{GITHUB_API}/repos/{self.repo}/issues"
+-        payload = {"title": title, "body": body}
+-        response = requests.post(url, json=payload, headers=self.headers)
++        print(f"❌ Project '{project_title}' not found. Creating...")
++        return self.create_project(project_title)
++
++    def create_project(self, project_title: str) -> str:
++        mutation = """
++        mutation($title: String!) {
++            createProjectV2(input: {title: $title, ownerId: "MDQ6VXNlcjU4NTYz"}) {
++                projectV2 {
++                    id
++                }
++            }
++        }
++        """
++        variables = {"title": project_title}
++        response = requests.post(
++            "https://api.github.com/graphql",
++            json={"query": mutation, "variables": variables},
++            headers=self.headers
++        )
+         response.raise_for_status()
+-        issue = response.json()
+-        logger.info(f"📝 Issue '{title}' created.")
+-        return issue["node_id"]
++        project_id = response.json()["data"]["createProjectV2"]["projectV2"]["id"]
++        self.project_id = project_id
++        print(f"✅ Created project '{project_title}' with ID {project_id}")
++        return project_id
++
++    def create_issue(self, title: str) -> dict:
++        url = f"https://api.github.com/repos/{self.repo}/issues"
++        payload = {"title": title}
++        response = requests.post(url, json=payload, headers=self.headers)
++        if response.status_code == 201:
++            return response.json()
++        print(f"❌ Failed to create issue: {response.text}")
++        return None
+ 
+-    def add_issue_to_project(self, project_id, issue_node_id):
++    def add_issue_to_project(self, project_id: str, issue_id: str) -> bool:
+         mutation = """
+-        mutation($projectId:ID!, $contentId:ID!) {
+-            addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
++        mutation($projectId: ID!, $contentId: ID!) {
++            addProjectV2ItemById(input: {
++                projectId: $projectId,
++                contentId: $contentId
++            }) {
+                 item {
+                     id
+                 }
+             }
+         }
+         """
+-        variables = {"projectId": project_id, "contentId": issue_node_id}
+-        self._graphql_query(mutation, variables)
+-        logger.info("✔️ Issue added to project.")
+-
+-    def set_issue_status(self, project_id, issue_node_id, status="Todo"):
+-        # In practice, you'd retrieve the status field ID and match to options.
+-        logger.info(f"✅ Status set to '{status}' (Placeholder - refine this logic in production)")
+-
++        variables = {"projectId": project_id, "contentId": issue_id}
++        response = requests.post(
++            "https://api.github.com/graphql",
++            json={"query": mutation, "variables": variables},
++            headers=self.headers
++        )
++        if response.status_code == 200:
++            return True
++        print(f"❌ Failed to add issue to project: {response.text}")
++        return False
+ 
+-def load_issues_from_yaml(file_path):
+-    with open(file_path, "r") as f:
+-        return yaml.safe_load(f)
++    def get_status_field_id(self, status: str) -> tuple:
++        query = """
++        query($projectId: ID!) {
++            node(id: $projectId) {
++                ... on ProjectV2 {
++                    fields(first: 20) {
++                        nodes {
++                            ... on ProjectV2SingleSelectField {
++                                id
++                                name
++                                options {
++                                    id
++                                    name
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++        """
++        variables = {"projectId": self.project_id}
++        data = self._graphql_query(query, variables)
++        fields = data["node"]["fields"]["nodes"]
++        for field in fields:
++            if field["name"] == "Status":
++                for option in field["options"]:
++                    if option["name"] == status:
++                        return field["id"], option["id"]
++        return None, None
++
++    def set_issue_status(self, issue_number: int, status: str, project_id: str) -> bool:
++        try:
++            field_id, option_id = self.get_status_field_id(status)
++            item_id = self._get_project_item_id(project_id, issue_number)
++            if not item_id:
++                print("❌ Could not find project item ID.")
++                return False
++
++            mutation = """
++            mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
++                updateProjectV2ItemFieldValue(input: {
++                    projectId: $projectId,
++                    itemId: $itemId,
++                    fieldId: $fieldId,
++                    value: {
++                        singleSelectOptionId: $optionId
++                    }
++                }) {
++                    projectV2Item {
++                        id
++                    }
++                }
++            }
++            """
++            variables = {
++                "projectId": project_id,
++                "itemId": item_id,
++                "fieldId": field_id,
++                "optionId": option_id,
++            }
++            response = requests.post(
++                "https://api.github.com/graphql",
++                json={"query": mutation, "variables": variables},
++                headers=self.headers
++            )
++            if response.status_code == 200:
++                return True
++            print(f"❌ Failed to set status: {response.text}")
++            return False
++        except Exception as e:
++            print(f"❌ Exception when setting status: {e}")
++            return False
++
++    def _get_project_item_id(self, project_id: str, issue_number: int) -> str:
++        query = """
++        query($projectId: ID!) {
++            node(id: $projectId) {
++                ... on ProjectV2 {
++                    items(first: 100) {
++                        nodes {
++                            id
++                            content {
++                                ... on Issue {
++                                    number
++                                }
++                            }
++                        }
++                    }
++                }
++            }
++        }
++        """
++        variables = {"projectId": project_id}
++        data = self._graphql_query(query, variables)
++        items = data["node"]["items"]["nodes"]
++        for item in items:
++            if item["content"] and item["content"]["number"] == issue_number:
++                return item["id"]
++        return None
+diff --git a/tests/__init__py b/tests/__init__.py
+similarity index 100%
+rename from tests/__init__py
+rename to tests/__init__.py
+diff --git a/tests/test_edge_cases.py b/tests/test_edge_cases.py
+new file mode 100644
+index 0000000..6a773e6
+--- /dev/null
++++ b/tests/test_edge_cases.py
+@@ -0,0 +1,88 @@
++import unittest
++from unittest.mock import patch, MagicMock
++import os
++import sys
++
++from src.github_prjt_automation import utils
++
++
++class TestMainEdgeCases(unittest.TestCase):
++
++    @patch("src.github_prjt_automation.utils.load_yaml", return_value={})
++    @patch.dict(os.environ, {}, clear=True)
++    def test_main_raises_if_no_token(self, mock_load_yaml):
++        from src.github_prjt_automation.main import main
++        with self.assertRaises(EnvironmentError):
++            main()
++
++    #-------------------------------
++    @patch.dict(os.environ, {"GITHUB_TOKEN": "dummy"}, clear=True)
++    @patch("src.github_prjt_automation.utils.load_yaml", return_value={})
++    @patch("src.github_prjt_automation.utils.GitHubHelper")
++    def test_project_creation_failure(self, MockGitHubHelper, mock_load_yaml):
++        mock_helper = MockGitHubHelper.return_value
++        mock_helper.get_or_create_project.return_value = None
++
++        from src.github_prjt_automation.main import main
++        main()
++
++        mock_helper.get_or_create_project.assert_called_once()
++
++#-------------------------------
++
++"""     @patch("src.github_prjt_automation.utils.load_yaml")
++    @patch("src.github_prjt_automation.utils.GitHubHelper")
++    def test_project_creation_failure(self, MockGitHubHelper, mock_load_yaml):
++        # Simulate no project ID found
++        mock_helper = MockGitHubHelper.return_value
++        mock_helper.get_or_create_project.return_value = None
++
++        mock_load_yaml.return_value = {
++            "GITHUB_TOKEN": "dummy",
++            "repo": "example/repo",
++            "project_title": "Fake Project",
++            "issues": []
++        }
++
++        from src.github_prjt_automation.main import main
++        main()
++
++        mock_helper.get_or_create_project.assert_called_once()
++ """
++
++class TestUtilsEdgeCases(unittest.TestCase):
++
++    def setUp(self):
++        self.gh = utils.GitHubHelper(token="dummy_token", repo="owner/repo")
++
++    @patch.object(utils.GitHubHelper, "_graphql_query")
++    def test_get_status_field_id_not_found(self, mock_query):
++        # Simulate no status field found
++        mock_query.return_value = {
++            "node": {
++                "fields": {
++                    "nodes": [{"name": "Priority", "id": "abc123"}]  # No "Status"
++                }
++            }
++        }
++
++        result = self.gh.get_status_field_id("proj_id")
++        self.assertEqual(result, (None, None))
++        #self.assertIsNone(result)
++#--------------------
++    @patch.object(utils.GitHubHelper, "get_status_field_id", side_effect=Exception("API down"))
++    def test_set_issue_status_failure(self, mock_status_field):
++        result = self.gh.set_issue_status(123, "Todo", "field_id")
++        self.assertFalse(result)
++""" 
++    @patch.object(utils.GitHubHelper, "_graphql_query", side_effect=Exception("API down"))
++    def test_set_issue_status_failure(self, mock_query):
++        result = self.gh.set_issue_status(123, "Todo", "field_id")
++        self.assertFalse(result) """
++# -------------------
++
++
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_edge_cases_copy.py b/tests/test_edge_cases_copy.py
+new file mode 100644
+index 0000000..95c178f
+--- /dev/null
++++ b/tests/test_edge_cases_copy.py
+@@ -0,0 +1,86 @@
++import unittest
++from unittest.mock import patch, MagicMock
++import os
++import sys
++
++from src.github_prjt_automation import utils
++
++
++class TestMainEdgeCases(unittest.TestCase):
++
++    @patch("src.github_prjt_automation.utils.load_yaml", return_value={})
++    @patch.dict(os.environ, {}, clear=True)
++    def test_main_raises_if_no_token(self, mock_load_yaml):
++        from src.github_prjt_automation.main import main
++        with self.assertRaises(EnvironmentError):
++            main()
++
++#-------------------------------
++@patch.dict(os.environ, {"GITHUB_TOKEN": "dummy"}, clear=True)
++@patch("src.github_prjt_automation.utils.load_yaml", return_value={})
++@patch("src.github_prjt_automation.utils.GitHubHelper")
++def test_project_creation_failure(self, MockGitHubHelper, mock_load_yaml):
++    mock_helper = MockGitHubHelper.return_value
++    mock_helper.get_or_create_project.return_value = None
++
++    from src.github_prjt_automation.main import main
++    main()
++
++    mock_helper.get_or_create_project.assert_called_once()
++
++#-------------------------------
++
++"""     @patch("src.github_prjt_automation.utils.load_yaml")
++    @patch("src.github_prjt_automation.utils.GitHubHelper")
++    def test_project_creation_failure(self, MockGitHubHelper, mock_load_yaml):
++        # Simulate no project ID found
++        mock_helper = MockGitHubHelper.return_value
++        mock_helper.get_or_create_project.return_value = None
++
++        mock_load_yaml.return_value = {
++            "GITHUB_TOKEN": "dummy",
++            "repo": "example/repo",
++            "project_title": "Fake Project",
++            "issues": []
++        }
++
++        from src.github_prjt_automation.main import main
++        main()
++
++        mock_helper.get_or_create_project.assert_called_once()
++ """
++
++class TestUtilsEdgeCases(unittest.TestCase):
++
++    def setUp(self):
++        self.gh = utils.GitHubHelper(token="dummy_token", repo="owner/repo")
++
++    @patch.object(utils.GitHubHelper, "_graphql_query")
++    def test_get_status_field_id_not_found(self, mock_query):
++        # Simulate no status field found
++        mock_query.return_value = {
++            "node": {
++                "fields": {
++                    "nodes": [{"name": "Priority", "id": "abc123"}]  # No "Status"
++                }
++            }
++        }
++
++        result = self.gh.get_status_field_id("proj_id")
++        self.assertEqual(result, (None, None))
++        #self.assertIsNone(result)
++#--------------------
++    @patch.object(utils.GitHubHelper, "get_status_field_id", side_effect=Exception("API down"))
++    def test_set_issue_status_failure(self, mock_status_field):
++        result = self.gh.set_issue_status(123, "Todo", "field_id")
++        self.assertFalse(result)
++""" 
++    @patch.object(utils.GitHubHelper, "_graphql_query", side_effect=Exception("API down"))
++    def test_set_issue_status_failure(self, mock_query):
++        result = self.gh.set_issue_status(123, "Todo", "field_id")
++        self.assertFalse(result) """
++# -------------------
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/test_main.py b/tests/test_main.py
+index 9db628d..1ab11dc 100644
+--- a/tests/test_main.py
++++ b/tests/test_main.py
+@@ -1,119 +1,123 @@
+-""" | Method                  | Scenario                      |
+-| ----------------------- | ----------------------------- |
+-| `get_or_create_project` | Found & creates if missing    |
+-| `create_issue`          | Success and failure cases     |
+-| `add_issue_to_project`  | Successful add                |
+-| `set_issue_status`      | Field status successfully set |
+-| `get_status_field_id`   | Correct field & option IDs   """  
+-
+-
+ import unittest
+ from unittest.mock import patch, MagicMock
+-from github_prjt_automation.utils import GitHubHelper
++from src.github_prjt_automation import main
++from src.github_prjt_automation.utils import GitHubHelper
+ 
+-class TestGitHubHelper(unittest.TestCase):
+ 
++class TestGitHubHelper(unittest.TestCase):
+     def setUp(self):
+-        self.helper = GitHubHelper(token="fake-token", repo="owner/repo")
+-        self.helper.headers = {"Authorization": "Bearer fake-token"}
+-
+-    @patch("github_prjt_automation.utils.requests.post")
+-    @patch("github_prjt_automation.utils.requests.get")
+-    def test_get_or_create_project_found(self, mock_get, mock_post):
+-        mock_get.return_value.status_code = 200
+-        mock_get.return_value.json.return_value = {
+-            "data": {
+-                "repository": {
+-                    "projectsV2": {
+-                        "nodes": [{"id": "existing_project_id"}]
+-                    }
+-                }
+-            }
+-        }
+-
+-        project_id = self.helper.get_or_create_project("Existing Project")
+-        self.assertEqual(project_id, "existing_project_id")
+-        mock_post.assert_not_called()
+-
+-    @patch("github_prjt_automation.utils.requests.post")
+-    @patch("github_prjt_automation.utils.requests.get")
+-    def test_get_or_create_project_creates_new(self, mock_get, mock_post):
+-        mock_get.return_value.status_code = 200
+-        mock_get.return_value.json.return_value = {
+-            "data": {"repository": {"projectsV2": {"nodes": []}}}
+-        }
++        self.helper = GitHubHelper("fake", "owner/repo")
+ 
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_get_or_create_project_found(self, mock_post):
++        # Simulate a response where the project already exists
+         mock_post.return_value.status_code = 200
+         mock_post.return_value.json.return_value = {
+             "data": {
+-                "createProjectV2": {"projectV2": {"id": "new_project_id"}}
++                "viewer": {
++                    "projectsV2": {
++                        "nodes": [{"title": "My Project", "id": "123"}]
++                    }
++                }
+             }
+         }
+-
+-        project_id = self.helper.get_or_create_project("New Project")
+-        self.assertEqual(project_id, "new_project_id")
+-
+-    @patch("github_prjt_automation.utils.requests.post")
++        result = self.helper.get_or_create_project("My Project")
++        self.assertEqual(result, "123")
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_get_or_create_project_creates_new(self, mock_post):
++        # First call simulates empty projects list
++        # Second call simulates project creation
++        mock_post.side_effect = [
++            MagicMock(
++                status_code=200,
++                json=lambda: {
++                    "data": {"viewer": {"projectsV2": {"nodes": []}}}
++                },
++            ),
++            MagicMock(
++                status_code=200,
++                json=lambda: {
++                    "data": {"createProjectV2": {"projectV2": {"id": "new_proj_id"}}}
++                },
++            ),
++        ]
++        result = self.helper.get_or_create_project("New Project")
++        self.assertEqual(result, "new_proj_id")
++
++    @patch("src.github_prjt_automation.utils.requests.post")
+     def test_create_issue_success(self, mock_post):
+         mock_post.return_value.status_code = 201
+-        mock_post.return_value.json.return_value = {
+-            "id": "issue123",
+-            "number": 5
+-        }
+-
+-        issue = self.helper.create_issue("Test Issue")
+-        self.assertEqual(issue["id"], "issue123")
++        mock_post.return_value.json.return_value = {"id": "issue_id"}
++        result = self.helper.create_issue("Test Issue")
++        self.assertEqual(result["id"], "issue_id")
+ 
+-    @patch("github_prjt_automation.utils.requests.post")
++    @patch("src.github_prjt_automation.utils.requests.post")
+     def test_create_issue_failure(self, mock_post):
+         mock_post.return_value.status_code = 400
+         mock_post.return_value.text = "Bad Request"
++        result = self.helper.create_issue("Test Issue")
++        self.assertIsNone(result)
+ 
+-        issue = self.helper.create_issue("Fail Issue")
+-        self.assertIsNone(issue)
+-
+-    @patch("github_prjt_automation.utils.requests.post")
++    @patch("src.github_prjt_automation.utils.requests.post")
+     def test_add_issue_to_project_success(self, mock_post):
+         mock_post.return_value.status_code = 200
+-        mock_post.return_value.json.return_value = {
+-            "data": {"addProjectV2ItemById": {"item": {"id": "item_id"}}}
+-        }
+-
+-        item_id = self.helper.add_issue_to_project("project123", "issue123")
+-        self.assertEqual(item_id, "item_id")
+-
+-    @patch("github_prjt_automation.utils.requests.post")
+-    def test_set_issue_status_success(self, mock_post):
+-        mock_post.return_value.status_code = 200
+-        mock_post.return_value.json.return_value = {
+-            "data": {"updateProjectV2ItemFieldValue": {"projectV2Item": {"id": "updated_id"}}}
++        result = self.helper.add_issue_to_project("proj_id", "issue_id")
++        self.assertTrue(result)
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_set_issue_status_failure_on_field_lookup(self, mock_post):
++        self.helper.get_status_field_id = MagicMock(return_value=(None, None))
++        result = self.helper.set_issue_status("proj_id", 1, "In Progress")
++        self.assertFalse(result)
++
++
++class TestGitHubAutomation(unittest.TestCase):
++    @patch("src.github_prjt_automation.main.get_config")
++    @patch("src.github_prjt_automation.main.GitHubHelper")
++    def test_main_flow(self, mock_helper_class, mock_get_config):
++        mock_get_config.return_value = {
++            "github_token": "fake",
++            "repo": "owner/repo",
++            "project_name": "SIEM Lab Progress",
++            "issues": [{"title": "Issue 1", "content": "Description"}]
+         }
+ 
+-        result = self.helper.set_issue_status("proj_id", 1, "Todo")
+-        self.assertEqual(result, "updated_id")
+-
+-    @patch("github_prjt_automation.utils.requests.get")
+-    def test_get_status_field_id_success(self, mock_get):
+-        mock_get.return_value.status_code = 200
+-        mock_get.return_value.json.return_value = {
+-            "data": {
+-                "node": {
+-                    "fields": {
+-                        "nodes": [
+-                            {
+-                                "name": "Status",
+-                                "id": "field123",
+-                                "options": [{"name": "Todo", "id": "todo123"}]
+-                            }
+-                        ]
+-                    }
+-                }
+-            }
+-        }
+-
+-        field_id, option_id = self.helper.get_status_field_id("project123", "Todo")
+-        self.assertEqual(field_id, "field123")
+-        self.assertEqual(option_id, "todo123")
+-
+-if __name__ == '__main__':
++        mock_helper = MagicMock()
++        mock_helper_class.return_value = mock_helper
++
++        mock_helper.get_or_create_project.return_value = "proj_id"
++        mock_helper.create_issue.return_value = "issue_id"
++        mock_helper.add_issue_to_project.return_value = True
++        mock_helper.get_status_field_id.return_value = "field_id"
++        mock_helper.set_issue_status.return_value = True
++
++        main.main()
++
++        mock_helper.get_or_create_project.assert_called_once_with("SIEM Lab Progress")
++        mock_helper.create_issue.assert_called_once()
++        mock_helper.add_issue_to_project.assert_called_once()
++        mock_helper.set_issue_status.assert_called_once()
++
++#---------------------------
++    def test_main_missing_config_fields(self):
++        mock_config = {
++            "github_token": "token",
++            "repo_owner": "owner",
++            "repo_name": "repo",
++            "issues": ["Task 1"]
++    }
++    with patch("src.github_prjt_automation.main.get_config", return_value=mock_config), \
++         patch("src.github_prjt_automation.main.GitHubHelper") as mock_helper:
++        mock_helper.return_value.get_or_create_project.return_value = "project_id"
++        mock_helper.return_value.create_issue.return_value = {"node_id": "abc123", "number": 1}
++        mock_helper.return_value.add_issue_to_project.return_value = True
++        try:
++            import src.github_prjt_automation.main as main_module
++            main_module.main()
++        except Exception:
++            self.fail("main() raised unexpectedly")
++
++
++if __name__ == "__main__":
+     unittest.main()
+diff --git a/tests/test_main_copy.py b/tests/test_main_copy.py
+new file mode 100644
+index 0000000..cc451f5
+--- /dev/null
++++ b/tests/test_main_copy.py
+@@ -0,0 +1,104 @@
++import unittest
++from unittest.mock import patch, MagicMock
++from src.github_prjt_automation import main
++from src.github_prjt_automation.utils import GitHubHelper
++
++
++class TestGitHubHelper(unittest.TestCase):
++    def setUp(self):
++        self.helper = GitHubHelper("fake", "owner/repo")
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_get_or_create_project_found(self, mock_post):
++        # Simulate a response where the project already exists
++        mock_post.return_value.status_code = 200
++        mock_post.return_value.json.return_value = {
++            "data": {
++                "viewer": {
++                    "projectsV2": {
++                        "nodes": [{"title": "My Project", "id": "123"}]
++                    }
++                }
++            }
++        }
++        result = self.helper.get_or_create_project("My Project")
++        self.assertEqual(result, "123")
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_get_or_create_project_creates_new(self, mock_post):
++        # First call simulates empty projects list
++        # Second call simulates project creation
++        mock_post.side_effect = [
++            MagicMock(
++                status_code=200,
++                json=lambda: {
++                    "data": {"viewer": {"projectsV2": {"nodes": []}}}
++                },
++            ),
++            MagicMock(
++                status_code=200,
++                json=lambda: {
++                    "data": {"createProjectV2": {"projectV2": {"id": "new_proj_id"}}}
++                },
++            ),
++        ]
++        result = self.helper.get_or_create_project("New Project")
++        self.assertEqual(result, "new_proj_id")
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_create_issue_success(self, mock_post):
++        mock_post.return_value.status_code = 201
++        mock_post.return_value.json.return_value = {"id": "issue_id"}
++        result = self.helper.create_issue("Test Issue")
++        self.assertEqual(result["id"], "issue_id")
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_create_issue_failure(self, mock_post):
++        mock_post.return_value.status_code = 400
++        mock_post.return_value.text = "Bad Request"
++        result = self.helper.create_issue("Test Issue")
++        self.assertIsNone(result)
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_add_issue_to_project_success(self, mock_post):
++        mock_post.return_value.status_code = 200
++        result = self.helper.add_issue_to_project("proj_id", "issue_id")
++        self.assertTrue(result)
++
++    @patch("src.github_prjt_automation.utils.requests.post")
++    def test_set_issue_status_failure_on_field_lookup(self, mock_post):
++        self.helper.get_status_field_id = MagicMock(return_value=(None, None))
++        result = self.helper.set_issue_status("proj_id", 1, "In Progress")
++        self.assertFalse(result)
++
++
++class TestGitHubAutomation(unittest.TestCase):
++    @patch("src.github_prjt_automation.main.get_config")
++    @patch("src.github_prjt_automation.main.GitHubHelper")
++    def test_main_flow(self, mock_helper_class, mock_get_config):
++        mock_get_config.return_value = {
++            "github_token": "fake",
++            "repo": "owner/repo",
++            "project_name": "SIEM Lab Progress",
++            "issues": [{"title": "Issue 1", "content": "Description"}]
++        }
++
++        mock_helper = MagicMock()
++        mock_helper_class.return_value = mock_helper
++
++        mock_helper.get_or_create_project.return_value = "proj_id"
++        mock_helper.create_issue.return_value = "issue_id"
++        mock_helper.add_issue_to_project.return_value = True
++        mock_helper.get_status_field_id.return_value = "field_id"
++        mock_helper.set_issue_status.return_value = True
++
++        main.main()
++
++        mock_helper.get_or_create_project.assert_called_once_with("SIEM Lab Progress")
++        mock_helper.create_issue.assert_called_once()
++        mock_helper.add_issue_to_project.assert_called_once()
++        mock_helper.set_issue_status.assert_called_once()
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+
