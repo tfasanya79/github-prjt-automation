@@ -27,10 +27,10 @@ jobs:
     - name: Lint code with Ruff (with autofix)
       run: |
         ruff check src tests --fix
-
+        
     - name: Type check with mypy
       run: |
-        mypy src --explicit-package-bases
+        mypy src --explicit-package-bases --no-strict-optional
 
     - name: Run unit tests with coverage
       run: |

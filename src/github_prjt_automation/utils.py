@@ -2,17 +2,18 @@ import requests
 import json
 import yaml
 import os
+from typing import Optional, Any, Tuple, Dict
 
 
-def load_yaml(file_path="config.yaml"):
+def load_yaml(file_path: str = "config.yaml") -> dict[str, Any]:
     try:
         with open(file_path, "r") as file:
-            return yaml.safe_load(file)
+            return yaml.safe_load(file) or {}
     except FileNotFoundError:
         return {}
 
 
-def get_config():
+def get_config() -> dict[str, Any]:
     config = load_yaml()
 
     # Fallbacks to env vars
@@ -27,20 +28,16 @@ def get_config():
 
 
 class GitHubHelper:
-    """
-    A helper class to interact with the GitHub GraphQL and REST APIs
-    for managing issues and projects.
-    """
     def __init__(self, token: str, repo: str):
         self.token = token
         self.repo = repo
-        self.project_id = None
+        self.project_id: Optional[str] = None
         self.headers = {
             "Authorization": f"Bearer {token}",
             "Accept": "application/vnd.github+json"
         }
 
-    def _graphql_query(self, query: str, variables: dict = None) -> dict:
+    def _graphql_query(self, query: str, variables: Optional[dict[str, Any]] = None) -> dict[str, Any]:
         url = "https://api.github.com/graphql"
         payload = {"query": query}
         if variables:
@@ -95,7 +92,7 @@ class GitHubHelper:
         print(f"✅ Created project '{project_title}' with ID {project_id}")
         return project_id
 
-    def create_issue(self, title: str) -> dict:
+    def create_issue(self, title: str) -> Optional[dict[str, Any]]:
         url = f"https://api.github.com/repos/{self.repo}/issues"
         payload = {"title": title}
         response = requests.post(url, json=payload, headers=self.headers)
@@ -128,7 +125,7 @@ class GitHubHelper:
         print(f"❌ Failed to add issue to project: {response.text}")
         return False
 
-    def get_status_field_id(self, status: str) -> tuple:
+    def get_status_field_id(self, status: str) -> Tuple[Optional[str], Optional[str]]:
         query = """
         query($projectId: ID!) {
             node(id: $projectId) {
@@ -162,6 +159,10 @@ class GitHubHelper:
     def set_issue_status(self, issue_number: int, status: str, project_id: str) -> bool:
         try:
             field_id, option_id = self.get_status_field_id(status)
+            if not field_id or not option_id:
+                print("❌ Could not find field or option ID.")
+                return False
+
             item_id = self._get_project_item_id(project_id, issue_number)
             if not item_id:
                 print("❌ Could not find project item ID.")
@@ -202,7 +203,7 @@ class GitHubHelper:
             print(f"❌ Exception when setting status: {e}")
             return False
 
-    def _get_project_item_id(self, project_id: str, issue_number: int) -> str:
+    def _get_project_item_id(self, project_id: str, issue_number: int) -> Optional[str]:
         query = """
         query($projectId: ID!) {
             node(id: $projectId) {
