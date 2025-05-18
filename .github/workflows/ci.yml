@@ -24,13 +24,13 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Lint code with Ruff (autofix)
+    - name: Lint code with Ruff (with autofix)
       run: |
-        ruff check --fix src tests
+        ruff check src tests --fix
 
     - name: Type check with mypy
       run: |
-        mypy src tests
+        mypy src --explicit-package-bases
 
     - name: Run unit tests with coverage
       run: |
@@ -42,6 +42,6 @@ jobs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
-        token: ${{ secrets.CODECOV_TOKEN }}
+        token: ${{ secrets.CODECOV_TOKEN }}  # Optional for public repos
         files: coverage.xml
         fail_ci_if_error: true
