@@ -1,0 +1,24 @@
+diff --git a/tests/test_edge_cases.py b/tests/test_edge_cases.py
+new file mode 100644
+index 0000000..abcdef1
+--- /dev/null
++++ b/tests/test_edge_cases.py
+@@ -0,0 +1,18 @@
++import unittest
++from unittest.mock import patch
++from src.github_prjt_automation.main import main
++
++
++class TestMainEdgeCases(unittest.TestCase):
++
++    @patch("src.github_prjt_automation.main.get_config", return_value={"repo": "x/y"})
++    def test_main_raises_if_no_token(self, mock_config):
++        with self.assertRaises(EnvironmentError):
++            main()
++
++    @patch("src.github_prjt_automation.main.get_config", return_value={"repo": "x/y"})
++    def test_project_creation_failure(self, mock_config):
++        with self.assertRaises(EnvironmentError):
++            main()
++
++

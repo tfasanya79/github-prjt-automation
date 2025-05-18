@@ -4,6 +4,8 @@ from .utils import GitHubHelper, get_config
 
 def main():
     config = get_config()
+    print("CONFIG:", get_config())
+
 
     if not config.get("github_token"):
         raise EnvironmentError("GitHub token not found. Set GITHUB_TOKEN or add it to config.yaml")

@@ -102,21 +102,24 @@ class TestGitHubAutomation(unittest.TestCase):
 #---------------------------
     def test_main_missing_config_fields(self):
         mock_config = {
-            "github_token": "token",
-            "repo_owner": "owner",
-            "repo_name": "repo",
-            "issues": ["Task 1"]
-    }
-    with patch("src.github_prjt_automation.main.get_config", return_value=mock_config), \
-         patch("src.github_prjt_automation.main.GitHubHelper") as mock_helper:
-        mock_helper.return_value.get_or_create_project.return_value = "project_id"
-        mock_helper.return_value.create_issue.return_value = {"node_id": "abc123", "number": 1}
-        mock_helper.return_value.add_issue_to_project.return_value = True
-        try:
-            import src.github_prjt_automation.main as main_module
-            main_module.main()
-        except Exception:
-            self.fail("main() raised unexpectedly")
+            "github_token": "fake_token",  # ✅ Add this line
+            "project_name": "Fake Project",
+            "repo": "example/repo",
+            "issues": []
+        }
+
+
+
+        with patch("src.github_prjt_automation.main.get_config", return_value=mock_config), \
+             patch("src.github_prjt_automation.main.GitHubHelper") as mock_helper:
+            mock_helper.return_value.get_or_create_project.return_value = "project_id"
+            mock_helper.return_value.create_issue.return_value = {"node_id": "abc123", "number": 1}
+            mock_helper.return_value.add_issue_to_project.return_value = True
+            try:
+                import src.github_prjt_automation.main as main_module
+                main_module.main()
+            except Exception:
+                self.fail("main() raised unexpectedly")
 
 
 if __name__ == "__main__":
